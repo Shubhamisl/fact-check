@@ -8,6 +8,7 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",
+        extra="ignore",
         populate_by_name=True,
     )
 
@@ -18,10 +19,10 @@ class Settings(BaseSettings):
         alias="OPENROUTER_VISION_MODEL",
     )
     tavily_api_key: str = Field(default="", alias="TAVILY_API_KEY")
-    max_claims_focused: int = Field(default=12, alias="MAX_CLAIMS_FOCUSED")
-    max_claims_deep: int = Field(default=25, alias="MAX_CLAIMS_DEEP")
-    max_ocr_pages: int = Field(default=5, alias="MAX_OCR_PAGES")
-    max_pdf_size_mb: int = Field(default=10, alias="MAX_PDF_SIZE_MB")
+    max_claims_focused: int = Field(default=12, alias="MAX_CLAIMS_FOCUSED", gt=0)
+    max_claims_deep: int = Field(default=25, alias="MAX_CLAIMS_DEEP", gt=0)
+    max_ocr_pages: int = Field(default=5, alias="MAX_OCR_PAGES", gt=0)
+    max_pdf_size_mb: int = Field(default=10, alias="MAX_PDF_SIZE_MB", gt=0)
     tavily_search_depth: str = Field(default="basic", alias="TAVILY_SEARCH_DEPTH")
     frontend_origin: str = Field(
         default="http://localhost:5173",
