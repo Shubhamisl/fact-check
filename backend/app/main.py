@@ -96,13 +96,31 @@ async def fact_check(
             detail="OpenRouter and Tavily API keys are not configured.",
         )
 
-    pages = extract_pdf_pages(BytesIO(pdf_bytes))
+    try:
+        pages = extract_pdf_pages(BytesIO(pdf_bytes))
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(
+            status_code=400,
+            detail="Could not read this PDF file.",
+        ) from exc
+
     pages_needing_ocr = find_pages_needing_ocr(pages)
 
     if pages_needing_ocr:
-        openrouter_client = OpenRouterClient()
-        ocr_service = OcrService(openrouter_client)
-        ocr_pages = await ocr_service.extract_pages(pdf_bytes, pages_needing_ocr)
+        try:
+            openrouter_client = OpenRouterClient()
+            ocr_service = OcrService(openrouter_client)
+            ocr_pages = await ocr_service.extract_pages(pdf_bytes, pages_needing_ocr)
+        except HTTPException:
+            raise
+        except Exception as exc:
+            raise HTTPException(
+                status_code=502,
+                detail="Verification service failed. Please try again.",
+            ) from exc
+
         ocr_by_page = {page.page_number: page for page in ocr_pages}
         pages = [
             ocr_by_page[page.page_number]
@@ -121,5 +139,13 @@ async def fact_check(
             detail="No extractable text found in this PDF.",
         )
 
-    orchestrator = build_orchestrator()
-    return await orchestrator.run(file_name, pages, scan_mode)
+    try:
+        orchestrator = build_orchestrator()
+        return await orchestrator.run(file_name, pages, scan_mode)
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(
+            status_code=502,
+            detail="Verification service failed. Please try again.",
+        ) from exc
