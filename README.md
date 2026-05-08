@@ -64,6 +64,12 @@ Use the included sample PDF:
 sample_pdfs/trap_smoke_test.pdf
 ```
 
+For a more realistic paragraph-style marketing brief, use:
+
+```text
+sample_pdfs/green_cloud_marketing_trap.pdf
+```
+
 Deployed smoke test:
 
 1. Open https://fact-check-1-vrdi.onrender.com/.
@@ -79,6 +85,12 @@ Expected sample behavior:
 - The COVID-19 emergency end date, global population milestone, Apple $3 trillion milestone, and GPT-4 release date should generally be supported.
 - The United States population claim of 500 million people in 2024 should be flagged as inaccurate or unsupported.
 - The Eiffel Tower height claim of 10,000 meters should be flagged as false or unsupported.
+
+Expected paragraph-brief traps:
+
+- `Data centres consume 25 percent of all electricity worldwide` should be flagged as inaccurate.
+- `Microsoft became carbon negative in 2020` should be flagged as inaccurate; it announced a 2030 goal in 2020.
+- `The Paris Agreement was adopted in 2020` should be flagged as inaccurate; it was adopted in 2015.
 
 ## Render Deployment
 
