@@ -34,6 +34,11 @@ export interface ClaimVerdict {
 export interface FactCheckReport {
   file_name: string;
   scan_mode: ScanMode;
-  summary: Record<string, number>;
+  summary: {
+    total: number;
+    verified: number;
+    inaccurate: number;
+    false_or_unsupported: number;
+  };
   claims: ClaimVerdict[];
 }
