@@ -1,5 +1,6 @@
 import asyncio
 from io import BytesIO
+from time import time
 from uuid import uuid4
 
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
@@ -20,7 +21,14 @@ from app.services.tavily_client import TavilyClient
 from app.services.verifier import Verifier
 
 settings = get_settings()
+
+# MVP job store for a single Render web service process. Jobs are not durable and
+# are not shared across multiple workers; keep Render configured accordingly until
+# this moves to a real queue/store.
+JOB_TTL_SECONDS = 30 * 60
+MAX_JOBS = 100
 jobs: dict[str, dict[str, object]] = {}
+job_tasks: dict[str, asyncio.Task[None]] = {}
 
 app = FastAPI(title="Fact-Check Agent", version="0.1.0")
 
@@ -73,6 +81,46 @@ def build_orchestrator() -> FactCheckOrchestrator:
         verifier=Verifier(openrouter_client),
         settings=settings,
     )
+
+
+def update_job(job_id: str, values: dict[str, object]) -> bool:
+    job = jobs.get(job_id)
+    if not job:
+        return False
+
+    job.update(values)
+    job["updated_at"] = time()
+    return True
+
+
+def remove_job(job_id: str, cancel_task: bool = False) -> bool:
+    task = job_tasks.pop(job_id, None)
+    if cancel_task and task and not task.done():
+        task.cancel()
+
+    return jobs.pop(job_id, None) is not None
+
+
+def cleanup_jobs() -> None:
+    now = time()
+    stale_job_ids = [
+        job_id
+        for job_id, job in jobs.items()
+        if now - float(job.get("updated_at", 0)) > JOB_TTL_SECONDS
+    ]
+    for job_id in stale_job_ids:
+        remove_job(job_id, cancel_task=True)
+
+    excess_count = len(jobs) - MAX_JOBS
+    if excess_count <= 0:
+        return
+
+    oldest_job_ids = sorted(
+        jobs,
+        key=lambda current_job_id: float(jobs[current_job_id].get("updated_at", 0)),
+    )
+    for job_id in oldest_job_ids[:excess_count]:
+        remove_job(job_id, cancel_task=True)
 
 
 async def read_valid_pdf_upload(file: UploadFile) -> tuple[str, bytes]:
@@ -164,12 +212,15 @@ async def run_job(
     pdf_bytes: bytes,
     scan_mode: ScanMode,
 ) -> None:
-    jobs[job_id].update({"status": "running", "progress": 5})
+    if not update_job(job_id, {"status": "running", "progress": 5}):
+        return
+
     try:
-        jobs[job_id]["progress"] = 20
+        update_job(job_id, {"progress": 20})
         report = await build_fact_check_report(file_name, pdf_bytes, scan_mode)
     except HTTPException as exc:
-        jobs[job_id].update(
+        update_job(
+            job_id,
             {
                 "status": "failed",
                 "progress": 100,
@@ -177,7 +228,8 @@ async def run_job(
             }
         )
     except Exception:
-        jobs[job_id].update(
+        update_job(
+            job_id,
             {
                 "status": "failed",
                 "progress": 100,
@@ -185,13 +237,16 @@ async def run_job(
             }
         )
     else:
-        jobs[job_id].update(
+        update_job(
+            job_id,
             {
                 "status": "complete",
                 "progress": 100,
                 "report": report.model_dump(mode="json"),
             }
         )
+    finally:
+        job_tasks.pop(job_id, None)
 
 
 @app.post("/api/fact-check", response_model=FactCheckReport)
@@ -208,6 +263,7 @@ async def create_job(
     scan_mode: ScanMode = Form(ScanMode.focused),
     file: UploadFile = File(...),
 ) -> dict[str, str]:
+    cleanup_jobs()
     file_name, pdf_bytes = await read_valid_pdf_upload(file)
     job_id = str(uuid4())
     jobs[job_id] = {
@@ -215,14 +271,26 @@ async def create_job(
         "status": "queued",
         "progress": 0,
         "file_name": file_name,
+        "updated_at": time(),
     }
-    asyncio.create_task(run_job(job_id, file_name, pdf_bytes, scan_mode))
+    job_tasks[job_id] = asyncio.create_task(
+        run_job(job_id, file_name, pdf_bytes, scan_mode)
+    )
     return {"job_id": job_id}
 
 
 @app.get("/api/jobs/{job_id}")
 async def get_job(job_id: str) -> dict[str, object]:
+    cleanup_jobs()
     job = jobs.get(job_id)
     if not job:
         raise HTTPException(status_code=404, detail="Job not found.")
     return job
+
+
+@app.delete("/api/jobs/{job_id}")
+async def delete_job(job_id: str) -> dict[str, str]:
+    cleanup_jobs()
+    if not remove_job(job_id, cancel_task=True):
+        raise HTTPException(status_code=404, detail="Job not found.")
+    return {"status": "deleted"}

@@ -1,5 +1,5 @@
 import { Download, FileText, ShieldCheck } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createFactCheckJob, getFactCheckJob } from "./api";
 import { ProgressRail } from "./components/ProgressRail";
 import { ResultsTable } from "./components/ResultsTable";
@@ -7,26 +7,72 @@ import { UploadPanel } from "./components/UploadPanel";
 import { VerdictSummary } from "./components/VerdictSummary";
 import type { FactCheckReport, ScanMode } from "./types";
 
+function waitForNextPoll(signal: AbortSignal): Promise<void> {
+  return new Promise((resolve, reject) => {
+    if (signal.aborted) {
+      reject(new DOMException("Polling cancelled", "AbortError"));
+      return;
+    }
+
+    const handleAbort = () => {
+      window.clearTimeout(timeoutId);
+      reject(new DOMException("Polling cancelled", "AbortError"));
+    };
+    const timeoutId = window.setTimeout(() => {
+      signal.removeEventListener("abort", handleAbort);
+      resolve();
+    }, 1000);
+
+    signal.addEventListener("abort", handleAbort, { once: true });
+  });
+}
+
+function isAbortError(error: unknown): boolean {
+  return error instanceof DOMException && error.name === "AbortError";
+}
+
 export default function App() {
   const [file, setFile] = useState<File | null>(null);
   const [scanMode, setScanMode] = useState<ScanMode>("focused");
   const [report, setReport] = useState<FactCheckReport | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isRunning, setIsRunning] = useState(false);
+  const activeControllerRef = useRef<AbortController | null>(null);
+  const isMountedRef = useRef(true);
+  const runIdRef = useRef(0);
+
+  useEffect(() => {
+    return () => {
+      isMountedRef.current = false;
+      runIdRef.current += 1;
+      activeControllerRef.current?.abort();
+    };
+  }, []);
 
   async function handleRun() {
     if (!file || isRunning) {
       return;
     }
 
+    activeControllerRef.current?.abort();
+    const controller = new AbortController();
+    const runId = runIdRef.current + 1;
+    const isCurrentRun = () => isMountedRef.current && runIdRef.current === runId;
+
+    runIdRef.current = runId;
+    activeControllerRef.current = controller;
     setError(null);
     setIsRunning(true);
 
     try {
-      const jobId = await createFactCheckJob(file, scanMode);
+      const jobId = await createFactCheckJob(file, scanMode, controller.signal);
 
       for (let attempt = 0; attempt < 180; attempt += 1) {
-        const job = await getFactCheckJob(jobId);
+        const job = await getFactCheckJob(jobId, controller.signal);
+
+        if (!isCurrentRun()) {
+          return;
+        }
 
         if (job.status === "complete" && job.report) {
           setReport(job.report);
@@ -37,11 +83,15 @@ export default function App() {
           throw new Error(job.error ?? "Fact-check failed. Please try again.");
         }
 
-        await new Promise((resolve) => window.setTimeout(resolve, 1000));
+        await waitForNextPoll(controller.signal);
       }
 
       throw new Error("Fact-check timed out. Please try again.");
     } catch (runError) {
+      if (isAbortError(runError) || !isCurrentRun()) {
+        return;
+      }
+
       setReport(null);
       setError(
         runError instanceof Error
@@ -49,7 +99,10 @@ export default function App() {
           : "Fact-check failed. Please try again.",
       );
     } finally {
-      setIsRunning(false);
+      if (isCurrentRun()) {
+        activeControllerRef.current = null;
+        setIsRunning(false);
+      }
     }
   }
 

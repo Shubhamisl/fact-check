@@ -36,6 +36,7 @@ export async function runFactCheck(
 export async function createFactCheckJob(
   file: File,
   scanMode: ScanMode,
+  signal?: AbortSignal,
 ): Promise<string> {
   const formData = new FormData();
   formData.append("file", file);
@@ -44,6 +45,7 @@ export async function createFactCheckJob(
   const response = await fetch(`${API_BASE}/api/jobs`, {
     method: "POST",
     body: formData,
+    signal,
   });
 
   if (!response.ok) {
@@ -61,8 +63,11 @@ export async function createFactCheckJob(
   return payload.job_id;
 }
 
-export async function getFactCheckJob(jobId: string): Promise<FactCheckJob> {
-  const response = await fetch(`${API_BASE}/api/jobs/${jobId}`);
+export async function getFactCheckJob(
+  jobId: string,
+  signal?: AbortSignal,
+): Promise<FactCheckJob> {
+  const response = await fetch(`${API_BASE}/api/jobs/${jobId}`, { signal });
 
   if (!response.ok) {
     const payload = await response
