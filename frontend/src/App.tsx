@@ -24,14 +24,7 @@ export default function App() {
         </aside>
 
         <section className="resultsPane" aria-label="Fact-check results">
-          <div className="emptyState">
-            <ShieldCheck size={36} strokeWidth={1.7} />
-            <h2>Ready for analysis</h2>
-            <p>
-              Results will appear here as a structured report with verdicts,
-              confidence, corrected facts, and source trails.
-            </p>
-          </div>
+          <div className="emptyState">Upload a PDF to begin.</div>
         </section>
       </section>
     </main>
