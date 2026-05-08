@@ -1,6 +1,6 @@
 # Fact-Check Agent
 
-Live URL: _TBD_
+Live URL: https://fact-check-1-vrdi.onrender.com/
 
 Fact-Check Agent is an MVP for reviewing claims in PDF documents. Upload a PDF, choose Focused Scan for a smaller set of high-signal claims or Deep Scan for broader coverage, and the app returns an evidence-backed fact-check report.
 
@@ -55,6 +55,30 @@ npm run dev
 ```
 
 The frontend runs at `http://localhost:5173`.
+
+## Smoke Test
+
+Use the included sample PDF:
+
+```text
+sample_pdfs/trap_smoke_test.pdf
+```
+
+Deployed smoke test:
+
+1. Open https://fact-check-1-vrdi.onrender.com/.
+2. Upload `sample_pdfs/trap_smoke_test.pdf`.
+3. Choose `Focused`.
+4. Click `Run fact-check`.
+5. Confirm the report table appears with verdicts, confidence, source counts, and expandable evidence.
+6. Expand at least one row and confirm reasoning plus source links are visible.
+7. Click `JSON` and confirm the report downloads.
+
+Expected sample behavior:
+
+- The COVID-19 emergency end date, global population milestone, Apple $3 trillion milestone, and GPT-4 release date should generally be supported.
+- The United States population claim of 500 million people in 2024 should be flagged as inaccurate or unsupported.
+- The Eiffel Tower height claim of 10,000 meters should be flagged as false or unsupported.
 
 ## Render Deployment
 
