@@ -70,3 +70,27 @@ async def test_claim_extractor_falls_back_to_regex_claims_when_model_schema_fail
     ]
     assert claims[0].claim_type == "date"
     assert claims[0].page_number == 1
+
+
+@pytest.mark.asyncio
+async def test_claim_extractor_normalizes_reported_claim_wrappers():
+    extractor = ClaimExtractor(MalformedOnlyOpenRouterClient())
+
+    claims = await extractor.extract_claims(
+        [
+            PageText(
+                page_number=1,
+                text=(
+                    "One draft says that data centres consume 25 percent of all "
+                    "electricity worldwide, a figure that sounds dramatic."
+                ),
+                source="pdf",
+            )
+        ],
+        ScanMode.focused,
+        limit=5,
+    )
+
+    assert [claim.text for claim in claims] == [
+        "data centres consume 25 percent of all electricity worldwide"
+    ]

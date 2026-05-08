@@ -19,6 +19,15 @@ DEEP_PROMPT = (
 )
 
 CLAIM_SENTENCE_PATTERN = re.compile(r"(?<=[.!?])\s+")
+REPORTED_CLAIM_PATTERN = re.compile(
+    r"^(?:one draft|another paragraph|the document|the report|this brief|the copy|"
+    r"the paragraph|the deck|the page)\s+(?:says|states|claims|reports)\s+that\s+(.+)$",
+    re.IGNORECASE,
+)
+TRAILING_CONTEXT_PATTERN = re.compile(
+    r",\s+(?:a figure|which|an important|a timeline|a claim|a number)\b.*$",
+    re.IGNORECASE,
+)
 SIGNAL_PATTERN = re.compile(
     r"(\b\d+(?:,\d{3})*(?:\.\d+)?\s?(?:%|percent|million|billion|trillion|"
     r"meters?|people|users?|employees?|countries?|years?|GB|TB|MB|AI|USD|"
@@ -26,6 +35,15 @@ SIGNAL_PATTERN = re.compile(
     r"April|May|June|July|August|September|October|November|December)\b)",
     re.IGNORECASE,
 )
+
+
+def normalize_claim_text(text: str) -> str:
+    normalized = " ".join(text.strip().split())
+    reported_match = REPORTED_CLAIM_PATTERN.match(normalized)
+    if reported_match:
+        normalized = reported_match.group(1).strip()
+    normalized = TRAILING_CONTEXT_PATTERN.sub("", normalized).strip()
+    return normalized
 
 
 def classify_claim_type(text: str) -> str:
@@ -67,7 +85,7 @@ def fallback_extract_claims(pages: list[PageText], limit: int) -> list[Extracted
     for page in pages:
         sentences = CLAIM_SENTENCE_PATTERN.split(page.text.replace("\n", " "))
         for sentence in sentences:
-            text = " ".join(sentence.strip().split())
+            text = normalize_claim_text(sentence)
             if len(text) < 20 or text in seen or not SIGNAL_PATTERN.search(text):
                 continue
             seen.add(text)
@@ -117,9 +135,11 @@ class ClaimExtractor:
         claims: list[ExtractedClaim] = []
         for item in raw_claims:
             try:
-                claims.append(ExtractedClaim.model_validate(item))
+                claim = ExtractedClaim.model_validate(item)
             except ValidationError:
                 continue
+            normalized_text = normalize_claim_text(claim.text)
+            claims.append(claim.model_copy(update={"text": normalized_text}))
         if claims:
             return claims[:limit]
 
