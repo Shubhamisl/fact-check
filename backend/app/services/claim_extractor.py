@@ -1,3 +1,5 @@
+from pydantic import ValidationError
+
 from app.models import ExtractedClaim, PageText, ScanMode
 from app.services.openrouter_client import OpenRouterClient
 
@@ -42,5 +44,10 @@ class ClaimExtractor:
 
         data = await self.client.chat_json(system=system, user=user)
         raw_claims = data if isinstance(data, list) else data.get("claims", [])
-        claims = [ExtractedClaim.model_validate(item) for item in raw_claims]
+        claims: list[ExtractedClaim] = []
+        for item in raw_claims:
+            try:
+                claims.append(ExtractedClaim.model_validate(item))
+            except ValidationError:
+                continue
         return claims[:limit]

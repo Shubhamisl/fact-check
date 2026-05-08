@@ -59,6 +59,35 @@ class FactCheckOrchestrator:
     ) -> FactCheckReport:
         claim_limit = self.settings.claim_limit_for_mode(mode.value)
         claims = await self.claim_extractor.extract_claims(pages, mode, claim_limit)
+        if not claims:
+            fallback_claim = ExtractedClaim(
+                id="claim-extraction-unavailable",
+                text="No valid structured claims could be extracted from this PDF.",
+                page_number=None,
+                claim_type="extraction_error",
+                topic="claim extraction",
+                importance="high",
+            )
+            verdict = ClaimVerdict(
+                claim=fallback_claim,
+                verdict="False / Unsupported",
+                corrected_fact=None,
+                confidence="Low",
+                reasoning=(
+                    "The model did not return any valid structured claims. Try a "
+                    "model with stronger JSON/structured-output support or run "
+                    "Deep Scan."
+                ),
+                sources=[],
+                search_queries=[],
+            )
+            return FactCheckReport(
+                file_name=file_name,
+                scan_mode=mode,
+                summary=build_report_summary([verdict.verdict]),
+                claims=[verdict],
+            )
+
         grouped_claims = group_claims(claims)
         verdicts: list[ClaimVerdict] = []
 

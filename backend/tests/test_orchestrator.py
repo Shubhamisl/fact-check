@@ -43,6 +43,17 @@ class FakeClaimExtractor:
         return [_claim()]
 
 
+class EmptyClaimExtractor(FakeClaimExtractor):
+    async def extract_claims(
+        self,
+        pages: list[PageText],
+        mode: ScanMode,
+        limit: int,
+    ) -> list[ExtractedClaim]:
+        self.calls.append((pages, mode, limit))
+        return []
+
+
 class FakeSearchService:
     def __init__(self) -> None:
         self.group_calls: list[tuple[str, list[ExtractedClaim]]] = []
@@ -193,6 +204,39 @@ async def test_gather_failure_marks_claim_verification_unavailable_without_run_f
     assert "verification is unavailable" in verdict.reasoning
     assert verdict.sources == []
     assert verdict.search_queries == []
+    assert verifier.calls == []
+
+
+@pytest.mark.asyncio
+async def test_empty_extraction_returns_unsupported_report_without_searching():
+    pages = [
+        PageText(
+            page_number=1,
+            text="The platform has 10 million users.",
+            source="pdf",
+        )
+    ]
+    search_service = FakeSearchService()
+    verifier = FakeVerifier()
+    orchestrator = FactCheckOrchestrator(
+        claim_extractor=EmptyClaimExtractor(),
+        search_service=search_service,
+        verifier=verifier,
+        settings=FakeSettings(),
+    )
+
+    report = await orchestrator.run("deck.pdf", pages, ScanMode.focused)
+
+    assert report.summary == {
+        "total": 1,
+        "verified": 0,
+        "inaccurate": 0,
+        "false_or_unsupported": 1,
+    }
+    assert report.claims[0].claim.id == "claim-extraction-unavailable"
+    assert report.claims[0].confidence == "Low"
+    assert "did not return any valid structured claims" in report.claims[0].reasoning
+    assert search_service.group_calls == []
     assert verifier.calls == []
 
 
