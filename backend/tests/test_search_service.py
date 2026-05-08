@@ -132,9 +132,12 @@ async def test_tavily_client_posts_search_request_and_returns_json(monkeypatch):
         async def __aexit__(self, exc_type, exc, traceback) -> None:
             return None
 
-        async def post(self, url: str, json: dict) -> FakeResponse:
+        async def post(
+            self, url: str, json: dict, headers: dict[str, str]
+        ) -> FakeResponse:
             captured["url"] = url
             captured["json"] = json
+            captured["headers"] = headers
             return FakeResponse()
 
     monkeypatch.setattr(httpx, "AsyncClient", FakeAsyncClient)
@@ -148,8 +151,9 @@ async def test_tavily_client_posts_search_request_and_returns_json(monkeypatch):
     assert captured["timeout"] == 30
     assert captured["url"] == "https://api.tavily.com/search"
     assert captured["raised"] is True
+    assert captured["headers"] == {"Authorization": "Bearer tv-key"}
+    assert "api_key" not in captured["json"]
     assert captured["json"] == {
-        "api_key": "tv-key",
         "query": "AI market",
         "search_depth": "advanced",
         "max_results": 7,
