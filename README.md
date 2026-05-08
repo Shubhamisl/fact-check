@@ -58,12 +58,14 @@ The frontend runs at `http://localhost:5173`.
 
 ## Render Deployment
 
-This repo includes Render blueprint files for separate backend and frontend services:
+This repo includes Render blueprint files for separate backend and frontend services in a monorepo layout:
 
-- `backend/render.yaml` creates `fact-check-agent-api`.
-- `frontend/render.yaml` creates `fact-check-agent-web`.
+- `backend/render.yaml` creates `fact-check-agent-api` with `rootDir: backend`, so `pip install -r requirements.txt` and `uvicorn app.main:app` run from the backend directory.
+- `frontend/render.yaml` creates `fact-check-agent-web` with `rootDir: frontend`, so `npm install`, `npm run build`, and `staticPublishPath: dist` are relative to the frontend directory.
 
-Deploy the backend first from the `backend` directory. Configure these Render environment variables:
+When using these blueprint files, create each Render service from its matching `render.yaml`. For manual setup instead, create the same two services and set the backend root directory to `backend` and the frontend root directory to `frontend`.
+
+Deploy the backend first. Configure these Render environment variables:
 
 - `OPENROUTER_API_KEY`: your OpenRouter API key.
 - `TAVILY_API_KEY`: your Tavily API key.
@@ -87,7 +89,9 @@ The backend start command is:
 uvicorn app.main:app --host 0.0.0.0 --port $PORT
 ```
 
-Deploy the frontend from the `frontend` directory. Set `VITE_API_BASE_URL` to the deployed backend URL, for example `https://fact-check-agent-api.onrender.com`.
+Deploy the frontend after the backend. Set `VITE_API_BASE_URL` to the deployed backend URL, for example `https://fact-check-agent-api.onrender.com`.
+
+`VITE_API_BASE_URL` is baked into the Vite static bundle at build time. If the backend URL changes after deployment, update this environment variable and rebuild/redeploy the frontend.
 
 The frontend build command is:
 
