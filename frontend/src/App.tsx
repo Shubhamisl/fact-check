@@ -1,6 +1,6 @@
 import { Download, FileText, ShieldCheck } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
-import { createFactCheckJob, getFactCheckJob } from "./api";
+import { createFactCheckJob, formatJobError, getFactCheckJob } from "./api";
 import { ProgressRail } from "./components/ProgressRail";
 import { ResultsTable } from "./components/ResultsTable";
 import { UploadPanel } from "./components/UploadPanel";
@@ -80,7 +80,7 @@ export default function App() {
         }
 
         if (job.status === "failed") {
-          throw new Error(job.error ?? "Fact-check failed. Please try again.");
+          throw new Error(formatJobError(job));
         }
 
         await waitForNextPoll(controller.signal);

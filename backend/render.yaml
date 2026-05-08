@@ -22,5 +22,7 @@ services:
         value: 5
       - key: MAX_PDF_SIZE_MB
         value: 10
+      - key: DEBUG_ERRORS
+        value: false
       - key: FRONTEND_ORIGIN
         sync: false

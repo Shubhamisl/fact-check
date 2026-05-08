@@ -1,6 +1,7 @@
 import asyncio
 from io import BytesIO
 from time import time
+from traceback import format_exception_only
 from uuid import uuid4
 
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
@@ -123,6 +124,48 @@ def cleanup_jobs() -> None:
         remove_job(job_id, cancel_task=True)
 
 
+def provider_error_detail(exc: Exception) -> dict[str, str]:
+    detail = {
+        "type": exc.__class__.__name__,
+        "message": str(exc) or "".join(format_exception_only(type(exc), exc)).strip(),
+    }
+    cause = exc.__cause__ or exc.__context__
+    if cause:
+        detail["cause_type"] = cause.__class__.__name__
+        detail["cause_message"] = str(cause)
+    return detail
+
+
+def verification_failure_payload(exc: Exception) -> dict[str, object]:
+    payload: dict[str, object] = {
+        "status": "failed",
+        "progress": 100,
+        "error": "Verification service failed. Please try again.",
+    }
+    if settings.debug_errors:
+        payload["error_details"] = provider_error_detail(exc)
+    return payload
+
+
+def http_exception_failure_payload(exc: HTTPException) -> dict[str, object]:
+    if isinstance(exc.detail, dict):
+        message = exc.detail.get("message") or "Verification service failed. Please try again."
+        payload: dict[str, object] = {
+            "status": "failed",
+            "progress": 100,
+            "error": message,
+        }
+        if settings.debug_errors and "debug" in exc.detail:
+            payload["error_details"] = exc.detail["debug"]
+        return payload
+
+    return {
+        "status": "failed",
+        "progress": 100,
+        "error": exc.detail,
+    }
+
+
 async def read_valid_pdf_upload(file: UploadFile) -> tuple[str, bytes]:
     file_name = file.filename or ""
     is_pdf_content = file.content_type == "application/pdf"
@@ -171,6 +214,12 @@ async def build_fact_check_report(
         except HTTPException:
             raise
         except Exception as exc:
+            if settings.debug_errors:
+                detail = {
+                    "message": "Verification service failed. Please try again.",
+                    "debug": provider_error_detail(exc),
+                }
+                raise HTTPException(status_code=502, detail=detail) from exc
             raise HTTPException(
                 status_code=502,
                 detail="Verification service failed. Please try again.",
@@ -200,6 +249,12 @@ async def build_fact_check_report(
     except HTTPException:
         raise
     except Exception as exc:
+        if settings.debug_errors:
+            detail = {
+                "message": "Verification service failed. Please try again.",
+                "debug": provider_error_detail(exc),
+            }
+            raise HTTPException(status_code=502, detail=detail) from exc
         raise HTTPException(
             status_code=502,
             detail="Verification service failed. Please try again.",
@@ -219,23 +274,9 @@ async def run_job(
         update_job(job_id, {"progress": 20})
         report = await build_fact_check_report(file_name, pdf_bytes, scan_mode)
     except HTTPException as exc:
-        update_job(
-            job_id,
-            {
-                "status": "failed",
-                "progress": 100,
-                "error": exc.detail,
-            }
-        )
-    except Exception:
-        update_job(
-            job_id,
-            {
-                "status": "failed",
-                "progress": 100,
-                "error": "Verification service failed. Please try again.",
-            }
-        )
+        update_job(job_id, http_exception_failure_payload(exc))
+    except Exception as exc:
+        update_job(job_id, verification_failure_payload(exc))
     else:
         update_job(
             job_id,

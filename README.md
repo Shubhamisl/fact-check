@@ -100,6 +100,7 @@ Deploy the backend first. Configure these Render environment variables:
 - `MAX_CLAIMS_DEEP`: `25`.
 - `MAX_OCR_PAGES`: `5`.
 - `MAX_PDF_SIZE_MB`: `10`.
+- `DEBUG_ERRORS`: `false` normally. Temporarily set to `true` while debugging provider/model failures, then redeploy the backend.
 
 The backend build command is:
 
@@ -132,3 +133,21 @@ dist
 ## MVP Runtime Note
 
 Job polling currently uses an in-memory job store in the backend process. On Render, run the backend as a single process with one Uvicorn worker unless shared storage such as Redis, a database, or another durable queue is added. Multiple workers or instances would not share job state, so polling could miss jobs created by another process.
+
+## Debugging Provider Failures
+
+If the UI shows `Verification service failed. Please try again.`, first check the backend health endpoint:
+
+```text
+https://fact-check-dmer.onrender.com/api/health
+```
+
+If `configured` is `true`, enable temporary detailed errors:
+
+1. In the backend Render service, set `DEBUG_ERRORS=true`.
+2. Redeploy the backend.
+3. Re-run the same PDF from the frontend.
+4. The UI/job response will include the exception type and short provider message, such as an unsupported OpenRouter `response_format`, invalid model slug, rate limit, or Tavily error.
+5. Set `DEBUG_ERRORS=false` again after debugging and redeploy.
+
+Do not leave `DEBUG_ERRORS=true` for a public submission unless you are comfortable exposing short provider error messages to testers.

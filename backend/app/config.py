@@ -28,6 +28,7 @@ class Settings(BaseSettings):
         default="http://localhost:5173",
         alias="FRONTEND_ORIGIN",
     )
+    debug_errors: bool = Field(default=False, alias="DEBUG_ERRORS")
 
     @property
     def max_pdf_size_bytes(self) -> int:

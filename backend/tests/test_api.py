@@ -116,3 +116,35 @@ def test_fact_check_translates_orchestrator_failure(
 
     assert response.status_code == 502
     assert response.json()["detail"] == "Verification service failed. Please try again."
+
+
+def test_fact_check_debug_errors_include_provider_detail(
+    client: TestClient,
+    configured_settings: None,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class FailingOrchestrator:
+        async def run(self, file_name, pages, scan_mode):
+            raise RuntimeError("model does not support response_format")
+
+    monkeypatch.setattr(main.settings, "debug_errors", True)
+    monkeypatch.setattr(
+        main,
+        "extract_pdf_pages",
+        lambda file_obj: [PageText(page_number=1, text="A checkable claim.", source="pdf")],
+    )
+    monkeypatch.setattr(main, "find_pages_needing_ocr", lambda pages: [])
+    monkeypatch.setattr(main, "build_orchestrator", lambda: FailingOrchestrator())
+
+    response = client.post(
+        "/api/fact-check",
+        data={"scan_mode": "focused"},
+        files={"file": ("file.pdf", b"%PDF-1.4", "application/pdf")},
+    )
+
+    assert response.status_code == 502
+    detail = response.json()["detail"]
+    assert detail["message"] == "Verification service failed. Please try again."
+    assert detail["debug"]["type"] == "RuntimeError"
+    assert detail["debug"]["message"] == "model does not support response_format"
+    monkeypatch.setattr(main.settings, "debug_errors", False)

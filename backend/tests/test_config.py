@@ -21,6 +21,7 @@ def test_settings_defaults_are_assignment_safe():
     assert settings.max_claims_deep == 25
     assert settings.max_ocr_pages == 5
     assert settings.max_pdf_size_mb == 10
+    assert settings.debug_errors is False
     assert settings.tavily_search_depth == "basic"
     assert settings.frontend_origin == "http://localhost:5173"
     assert settings.has_required_keys is True

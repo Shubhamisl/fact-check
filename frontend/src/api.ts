@@ -8,6 +8,50 @@ export interface FactCheckJob {
   progress: number;
   report?: FactCheckReport;
   error?: string;
+  error_details?: {
+    type?: string;
+    message?: string;
+    cause_type?: string;
+    cause_message?: string;
+  };
+}
+
+function errorMessageFromPayload(payload: { detail?: unknown }): string {
+  if (typeof payload.detail === "string") {
+    return payload.detail;
+  }
+  if (
+    payload.detail &&
+    typeof payload.detail === "object" &&
+    "message" in payload.detail
+  ) {
+    const detail = payload.detail as {
+      message?: string;
+      debug?: { type?: string; message?: string };
+    };
+    const debugText = detail.debug
+      ? ` (${detail.debug.type ?? "Error"}: ${detail.debug.message ?? ""})`
+      : "";
+    return `${detail.message ?? "Fact-check failed"}${debugText}`;
+  }
+  return "Fact-check failed";
+}
+
+export function formatJobError(job: FactCheckJob): string {
+  const base = job.error ?? "Fact-check failed. Please try again.";
+  if (!job.error_details) {
+    return base;
+  }
+
+  const type = job.error_details.type ?? "Error";
+  const message = job.error_details.message ?? "";
+  const cause =
+    job.error_details.cause_type || job.error_details.cause_message
+      ? `; cause ${job.error_details.cause_type ?? "Error"}: ${
+          job.error_details.cause_message ?? ""
+        }`
+      : "";
+  return `${base} (${type}: ${message}${cause})`;
 }
 
 export async function runFactCheck(
@@ -27,7 +71,7 @@ export async function runFactCheck(
     const payload = await response
       .json()
       .catch(() => ({ detail: "Fact-check failed" }));
-    throw new Error(payload.detail ?? "Fact-check failed");
+    throw new Error(errorMessageFromPayload(payload));
   }
 
   return response.json();
@@ -52,7 +96,7 @@ export async function createFactCheckJob(
     const payload = await response
       .json()
       .catch(() => ({ detail: "Could not start job" }));
-    throw new Error(payload.detail ?? "Could not start job");
+    throw new Error(errorMessageFromPayload(payload));
   }
 
   const payload = (await response.json()) as { job_id?: string };
@@ -73,7 +117,7 @@ export async function getFactCheckJob(
     const payload = await response
       .json()
       .catch(() => ({ detail: "Could not read job" }));
-    throw new Error(payload.detail ?? "Could not read job");
+    throw new Error(errorMessageFromPayload(payload));
   }
 
   return response.json();
