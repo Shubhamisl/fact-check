@@ -4,6 +4,7 @@ from time import time
 from traceback import format_exception_only
 from uuid import uuid4
 
+import httpx
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -130,10 +131,16 @@ def provider_error_detail(exc: Exception) -> dict[str, str]:
         "type": exc.__class__.__name__,
         "message": str(exc) or "".join(format_exception_only(type(exc), exc)).strip(),
     }
+    if isinstance(exc, httpx.HTTPStatusError):
+        detail["status_code"] = str(exc.response.status_code)
+        detail["provider_response"] = exc.response.text[:1000]
     cause = exc.__cause__ or exc.__context__
     if cause:
         detail["cause_type"] = cause.__class__.__name__
         detail["cause_message"] = str(cause)
+        if isinstance(cause, httpx.HTTPStatusError):
+            detail["cause_status_code"] = str(cause.response.status_code)
+            detail["cause_provider_response"] = cause.response.text[:1000]
     return detail
 
 
