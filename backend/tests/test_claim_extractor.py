@@ -38,3 +38,35 @@ async def test_claim_extractor_skips_malformed_claim_items():
 
     assert len(claims) == 1
     assert claims[0].id == "claim-1"
+
+
+class MalformedOnlyOpenRouterClient:
+    async def chat_json(self, system: str, user: str, model: str | None = None):
+        return {"claims": [{"": None}]}
+
+
+@pytest.mark.asyncio
+async def test_claim_extractor_falls_back_to_regex_claims_when_model_schema_fails():
+    extractor = ClaimExtractor(MalformedOnlyOpenRouterClient())
+
+    claims = await extractor.extract_claims(
+        [
+            PageText(
+                page_number=1,
+                text=(
+                    "The United States population was 500 million people in 2024. "
+                    "The Eiffel Tower is 10,000 meters tall."
+                ),
+                source="pdf",
+            )
+        ],
+        ScanMode.focused,
+        limit=5,
+    )
+
+    assert [claim.text for claim in claims] == [
+        "The United States population was 500 million people in 2024.",
+        "The Eiffel Tower is 10,000 meters tall.",
+    ]
+    assert claims[0].claim_type == "date"
+    assert claims[0].page_number == 1

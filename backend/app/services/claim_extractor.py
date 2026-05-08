@@ -1,3 +1,5 @@
+import re
+
 from pydantic import ValidationError
 
 from app.models import ExtractedClaim, PageText, ScanMode
@@ -15,6 +17,74 @@ DEEP_PROMPT = (
     "claims, causal claims, comparisons, temporal assertions, and concrete claims "
     "about named entities. Skip opinions, vague marketing language, and advice."
 )
+
+CLAIM_SENTENCE_PATTERN = re.compile(r"(?<=[.!?])\s+")
+SIGNAL_PATTERN = re.compile(
+    r"(\b\d+(?:,\d{3})*(?:\.\d+)?\s?(?:%|percent|million|billion|trillion|"
+    r"meters?|people|users?|employees?|countries?|years?|GB|TB|MB|AI|USD|"
+    r"dollars?)\b|\$\s?\d+|\b(?:19|20)\d{2}\b|\b(?:January|February|March|"
+    r"April|May|June|July|August|September|October|November|December)\b)",
+    re.IGNORECASE,
+)
+
+
+def classify_claim_type(text: str) -> str:
+    lowered = text.lower()
+    if "$" in text or any(word in lowered for word in ("market", "revenue", "valuation")):
+        return "financial figure"
+    if "%" in text or "percent" in lowered:
+        return "percentage"
+    if any(month.lower() in lowered for month in (
+        "january",
+        "february",
+        "march",
+        "april",
+        "may",
+        "june",
+        "july",
+        "august",
+        "september",
+        "october",
+        "november",
+        "december",
+    )):
+        return "date"
+    if re.search(r"\b(?:19|20)\d{2}\b", text):
+        return "date"
+    return "statistic"
+
+
+def infer_topic(text: str) -> str:
+    words = re.findall(r"[A-Z][A-Za-z0-9-]+", text)
+    topic = " ".join(words[:4]).strip()
+    return topic or "general facts"
+
+
+def fallback_extract_claims(pages: list[PageText], limit: int) -> list[ExtractedClaim]:
+    claims: list[ExtractedClaim] = []
+    seen: set[str] = set()
+
+    for page in pages:
+        sentences = CLAIM_SENTENCE_PATTERN.split(page.text.replace("\n", " "))
+        for sentence in sentences:
+            text = " ".join(sentence.strip().split())
+            if len(text) < 20 or text in seen or not SIGNAL_PATTERN.search(text):
+                continue
+            seen.add(text)
+            claims.append(
+                ExtractedClaim(
+                    id=f"claim-{len(claims) + 1}",
+                    text=text,
+                    page_number=page.page_number,
+                    claim_type=classify_claim_type(text),
+                    topic=infer_topic(text),
+                    importance="high",
+                )
+            )
+            if len(claims) >= limit:
+                return claims
+
+    return claims
 
 
 class ClaimExtractor:
@@ -50,4 +120,7 @@ class ClaimExtractor:
                 claims.append(ExtractedClaim.model_validate(item))
             except ValidationError:
                 continue
-        return claims[:limit]
+        if claims:
+            return claims[:limit]
+
+        return fallback_extract_claims(pages, limit)
