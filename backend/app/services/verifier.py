@@ -4,6 +4,7 @@ from app.services.openrouter_client import OpenRouterClient
 
 VALID_VERDICTS = {"Verified", "Inaccurate", "False / Unsupported"}
 VALID_CONFIDENCE = {"High", "Medium", "Low"}
+EMPTY_CORRECTIONS = {"", "none", "null", "n/a", "not applicable", "no correction needed"}
 
 
 def normalize_verdict(value: object) -> str:
@@ -25,6 +26,23 @@ def normalize_confidence(value: object) -> str:
     if confidence in VALID_CONFIDENCE:
         return confidence
     return "Low"
+
+
+def normalize_corrected_fact(value: object) -> str | None:
+    if value is None:
+        return None
+
+    corrected_fact = str(value).strip()
+    if corrected_fact.lower() in EMPTY_CORRECTIONS:
+        return None
+    return corrected_fact
+
+
+def normalize_claim_verdict(raw_verdict: object, corrected_fact: str | None) -> str:
+    verdict = normalize_verdict(raw_verdict)
+    if verdict == "Verified" and corrected_fact:
+        return "Inaccurate"
+    return verdict
 
 
 class Verifier:
@@ -50,7 +68,9 @@ class Verifier:
             "You are an evidence-grounded fact checker. Judge the claim only using "
             "the provided evidence. Return JSON with verdict ('Verified', "
             "'Inaccurate', or 'False / Unsupported'), corrected_fact, confidence "
-            "('High', 'Medium', or 'Low'), and reasoning."
+            "('High', 'Medium', or 'Low'), and reasoning. Use Verified only when "
+            "the claim matches the evidence as written. If you provide a corrected "
+            "fact, the verdict must be Inaccurate."
         )
         user = (
             f"Claim: {claim.text}\n"
@@ -60,10 +80,11 @@ class Verifier:
 
         data = await self.client.chat_json(system=system, user=user)
         search_queries = sorted({source.query for source in evidence if source.query})
+        corrected_fact = normalize_corrected_fact(data.get("corrected_fact"))
         return ClaimVerdict(
             claim=claim,
-            verdict=normalize_verdict(data.get("verdict")),
-            corrected_fact=data.get("corrected_fact"),
+            verdict=normalize_claim_verdict(data.get("verdict"), corrected_fact),
+            corrected_fact=corrected_fact,
             confidence=normalize_confidence(data.get("confidence")),
             reasoning=data.get("reasoning")
             or "The model returned an incomplete verdict, so this result is low confidence.",
