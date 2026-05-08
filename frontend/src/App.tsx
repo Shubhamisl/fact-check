@@ -1,6 +1,6 @@
 import { Download, FileText, ShieldCheck } from "lucide-react";
 import { useState } from "react";
-import { runFactCheck } from "./api";
+import { createFactCheckJob, getFactCheckJob } from "./api";
 import { ProgressRail } from "./components/ProgressRail";
 import { ResultsTable } from "./components/ResultsTable";
 import { UploadPanel } from "./components/UploadPanel";
@@ -23,8 +23,24 @@ export default function App() {
     setIsRunning(true);
 
     try {
-      const nextReport = await runFactCheck(file, scanMode);
-      setReport(nextReport);
+      const jobId = await createFactCheckJob(file, scanMode);
+
+      for (let attempt = 0; attempt < 180; attempt += 1) {
+        const job = await getFactCheckJob(jobId);
+
+        if (job.status === "complete" && job.report) {
+          setReport(job.report);
+          return;
+        }
+
+        if (job.status === "failed") {
+          throw new Error(job.error ?? "Fact-check failed. Please try again.");
+        }
+
+        await new Promise((resolve) => window.setTimeout(resolve, 1000));
+      }
+
+      throw new Error("Fact-check timed out. Please try again.");
     } catch (runError) {
       setReport(null);
       setError(

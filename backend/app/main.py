@@ -1,4 +1,6 @@
+import asyncio
 from io import BytesIO
+from uuid import uuid4
 
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
@@ -18,6 +20,7 @@ from app.services.tavily_client import TavilyClient
 from app.services.verifier import Verifier
 
 settings = get_settings()
+jobs: dict[str, dict[str, object]] = {}
 
 app = FastAPI(title="Fact-Check Agent", version="0.1.0")
 
@@ -72,11 +75,7 @@ def build_orchestrator() -> FactCheckOrchestrator:
     )
 
 
-@app.post("/api/fact-check", response_model=FactCheckReport)
-async def fact_check(
-    scan_mode: ScanMode = Form(ScanMode.focused),
-    file: UploadFile = File(...),
-) -> FactCheckReport:
+async def read_valid_pdf_upload(file: UploadFile) -> tuple[str, bytes]:
     file_name = file.filename or ""
     is_pdf_content = file.content_type == "application/pdf"
     is_pdf_name = file_name.lower().endswith(".pdf")
@@ -96,6 +95,14 @@ async def fact_check(
             detail="OpenRouter and Tavily API keys are not configured.",
         )
 
+    return file_name, pdf_bytes
+
+
+async def build_fact_check_report(
+    file_name: str,
+    pdf_bytes: bytes,
+    scan_mode: ScanMode,
+) -> FactCheckReport:
     try:
         pages = extract_pdf_pages(BytesIO(pdf_bytes))
     except HTTPException:
@@ -149,3 +156,73 @@ async def fact_check(
             status_code=502,
             detail="Verification service failed. Please try again.",
         ) from exc
+
+
+async def run_job(
+    job_id: str,
+    file_name: str,
+    pdf_bytes: bytes,
+    scan_mode: ScanMode,
+) -> None:
+    jobs[job_id].update({"status": "running", "progress": 5})
+    try:
+        jobs[job_id]["progress"] = 20
+        report = await build_fact_check_report(file_name, pdf_bytes, scan_mode)
+    except HTTPException as exc:
+        jobs[job_id].update(
+            {
+                "status": "failed",
+                "progress": 100,
+                "error": exc.detail,
+            }
+        )
+    except Exception:
+        jobs[job_id].update(
+            {
+                "status": "failed",
+                "progress": 100,
+                "error": "Verification service failed. Please try again.",
+            }
+        )
+    else:
+        jobs[job_id].update(
+            {
+                "status": "complete",
+                "progress": 100,
+                "report": report.model_dump(mode="json"),
+            }
+        )
+
+
+@app.post("/api/fact-check", response_model=FactCheckReport)
+async def fact_check(
+    scan_mode: ScanMode = Form(ScanMode.focused),
+    file: UploadFile = File(...),
+) -> FactCheckReport:
+    file_name, pdf_bytes = await read_valid_pdf_upload(file)
+    return await build_fact_check_report(file_name, pdf_bytes, scan_mode)
+
+
+@app.post("/api/jobs")
+async def create_job(
+    scan_mode: ScanMode = Form(ScanMode.focused),
+    file: UploadFile = File(...),
+) -> dict[str, str]:
+    file_name, pdf_bytes = await read_valid_pdf_upload(file)
+    job_id = str(uuid4())
+    jobs[job_id] = {
+        "job_id": job_id,
+        "status": "queued",
+        "progress": 0,
+        "file_name": file_name,
+    }
+    asyncio.create_task(run_job(job_id, file_name, pdf_bytes, scan_mode))
+    return {"job_id": job_id}
+
+
+@app.get("/api/jobs/{job_id}")
+async def get_job(job_id: str) -> dict[str, object]:
+    job = jobs.get(job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found.")
+    return job
