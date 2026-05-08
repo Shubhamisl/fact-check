@@ -61,6 +61,22 @@ class FakeSearchService:
         return []
 
 
+class FailingGatherSearchService(FakeSearchService):
+    async def gather_evidence_for_group(
+        self,
+        topic: str,
+        claims: list[ExtractedClaim],
+    ) -> list[EvidenceSource]:
+        self.group_calls.append((topic, claims))
+        raise RuntimeError("tavily unavailable")
+
+
+class FailingFollowUpSearchService(FakeSearchService):
+    async def follow_up(self, claim: ExtractedClaim) -> list[EvidenceSource]:
+        self.follow_up_calls.append(claim)
+        raise RuntimeError("tavily unavailable")
+
+
 class FakeVerifier:
     def __init__(self) -> None:
         self.calls: list[tuple[ExtractedClaim, list[EvidenceSource]]] = []
@@ -77,6 +93,24 @@ class FakeVerifier:
             corrected_fact="The platform has 8 million users.",
             confidence="High",
             reasoning="The supplied evidence reports 8 million users.",
+            sources=evidence,
+            search_queries=[source.query for source in evidence],
+        )
+
+
+class LowConfidenceVerifier(FakeVerifier):
+    async def verify(
+        self,
+        claim: ExtractedClaim,
+        evidence: list[EvidenceSource],
+    ) -> ClaimVerdict:
+        self.calls.append((claim, evidence))
+        return ClaimVerdict(
+            claim=claim,
+            verdict="False / Unsupported",
+            corrected_fact=None,
+            confidence="Low",
+            reasoning="The evidence is insufficient to verify the claim.",
             sources=evidence,
             search_queries=[source.query for source in evidence],
         )
@@ -122,3 +156,70 @@ async def test_orchestrator_returns_report_summary_and_corrected_fact_for_one_cl
     assert extractor.calls == [(pages, ScanMode.focused, 1)]
     assert search_service.group_calls[0][0] == "platform users"
     assert verifier.calls[0][0].id == "claim-1"
+
+
+@pytest.mark.asyncio
+async def test_gather_failure_marks_claim_verification_unavailable_without_run_failure():
+    pages = [
+        PageText(
+            page_number=1,
+            text="The platform has 10 million users.",
+            source="pdf",
+        )
+    ]
+    search_service = FailingGatherSearchService()
+    verifier = FakeVerifier()
+    orchestrator = FactCheckOrchestrator(
+        claim_extractor=FakeClaimExtractor(),
+        search_service=search_service,
+        verifier=verifier,
+        settings=FakeSettings(),
+    )
+
+    report = await orchestrator.run("deck.pdf", pages, ScanMode.focused)
+
+    assert report.summary == {
+        "total": 1,
+        "verified": 0,
+        "inaccurate": 0,
+        "false_or_unsupported": 1,
+    }
+    assert len(report.claims) == 1
+    verdict = report.claims[0]
+    assert verdict.verdict == "False / Unsupported"
+    assert verdict.corrected_fact is None
+    assert verdict.confidence == "Low"
+    assert "evidence search failed" in verdict.reasoning
+    assert "verification is unavailable" in verdict.reasoning
+    assert verdict.sources == []
+    assert verdict.search_queries == []
+    assert verifier.calls == []
+
+
+@pytest.mark.asyncio
+async def test_follow_up_failure_preserves_original_low_confidence_verdict():
+    pages = [
+        PageText(
+            page_number=1,
+            text="The platform has 10 million users.",
+            source="pdf",
+        )
+    ]
+    search_service = FailingFollowUpSearchService()
+    verifier = LowConfidenceVerifier()
+    orchestrator = FactCheckOrchestrator(
+        claim_extractor=FakeClaimExtractor(),
+        search_service=search_service,
+        verifier=verifier,
+        settings=FakeSettings(),
+    )
+
+    report = await orchestrator.run("deck.pdf", pages, ScanMode.focused)
+
+    assert len(report.claims) == 1
+    verdict = report.claims[0]
+    assert verdict.verdict == "False / Unsupported"
+    assert verdict.confidence == "Low"
+    assert verdict.reasoning == "The evidence is insufficient to verify the claim."
+    assert len(verifier.calls) == 1
+    assert len(search_service.follow_up_calls) == 1

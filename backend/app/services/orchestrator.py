@@ -63,14 +63,36 @@ class FactCheckOrchestrator:
         verdicts: list[ClaimVerdict] = []
 
         for topic, topic_claims in grouped_claims.items():
-            evidence = await self.search_service.gather_evidence_for_group(
-                topic,
-                topic_claims,
-            )
+            try:
+                evidence = await self.search_service.gather_evidence_for_group(
+                    topic,
+                    topic_claims,
+                )
+            except Exception:
+                verdicts.extend(
+                    ClaimVerdict(
+                        claim=claim,
+                        verdict="False / Unsupported",
+                        corrected_fact=None,
+                        confidence="Low",
+                        reasoning=(
+                            "evidence search failed, so verification is unavailable "
+                            "for this claim."
+                        ),
+                        sources=[],
+                        search_queries=[],
+                    )
+                    for claim in topic_claims
+                )
+                continue
+
             for claim in topic_claims:
                 verdict = await self.verifier.verify(claim, evidence)
                 if verdict.confidence == "Low" and claim.importance == "high":
-                    follow_up = await self.search_service.follow_up(claim)
+                    try:
+                        follow_up = await self.search_service.follow_up(claim)
+                    except Exception:
+                        follow_up = []
                     if follow_up:
                         verdict = await self.verifier.verify(
                             claim,
