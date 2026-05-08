@@ -128,6 +128,8 @@ class LowConfidenceVerifier(FakeVerifier):
 
 
 class FakeSettings:
+    enable_follow_up_search = True
+
     def claim_limit_for_mode(self, mode: str) -> int:
         assert mode == "focused"
         return 1

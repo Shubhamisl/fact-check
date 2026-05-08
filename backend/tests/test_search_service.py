@@ -30,12 +30,27 @@ def _claim(
     )
 
 
-def test_build_search_queries_uses_topic_latest_official_data_and_claim_source_query():
+def test_build_search_queries_prefers_claim_source_queries_before_topic_fallback():
     queries = build_search_queries("Global AI market", [_claim()])
 
-    assert queries[0] == "Global AI market latest official data"
-    assert "The global AI market reached $500 billion in 2024." in queries[1]
-    assert "source" in queries[1]
+    assert "The global AI market reached $500 billion in 2024." in queries[0]
+    assert "source" in queries[0]
+    assert queries[1] == "Global AI market latest official data"
+
+
+def test_build_search_queries_respects_query_limit():
+    claims = [
+        _claim(
+            id_=f"claim-{index}",
+            text=f"Claim {index} reached {index} million users in 2024.",
+        )
+        for index in range(1, 4)
+    ]
+
+    queries = build_search_queries("Global AI market", claims, max_queries=2)
+
+    assert len(queries) == 2
+    assert all("Claim" in query for query in queries)
 
 
 def test_normalize_tavily_results_keeps_title_url_snippet_published_date_and_query():

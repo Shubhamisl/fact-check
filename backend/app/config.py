@@ -23,6 +23,17 @@ class Settings(BaseSettings):
     max_claims_deep: int = Field(default=25, alias="MAX_CLAIMS_DEEP", gt=0)
     max_ocr_pages: int = Field(default=5, alias="MAX_OCR_PAGES", gt=0)
     max_pdf_size_mb: int = Field(default=10, alias="MAX_PDF_SIZE_MB", gt=0)
+    max_search_queries_per_group: int = Field(
+        default=2,
+        alias="MAX_SEARCH_QUERIES_PER_GROUP",
+        gt=0,
+    )
+    max_search_results_per_query: int = Field(
+        default=2,
+        alias="MAX_SEARCH_RESULTS_PER_QUERY",
+        gt=0,
+    )
+    enable_follow_up_search: bool = Field(default=False, alias="ENABLE_FOLLOW_UP_SEARCH")
     tavily_search_depth: str = Field(default="basic", alias="TAVILY_SEARCH_DEPTH")
     frontend_origin: str = Field(
         default="http://localhost:5173",

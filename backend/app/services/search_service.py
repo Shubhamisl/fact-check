@@ -2,15 +2,25 @@ from app.models import EvidenceSource, ExtractedClaim
 from app.services.tavily_client import TavilyClient
 
 
-def build_search_queries(topic: str, claims: list[ExtractedClaim]) -> list[str]:
-    queries = [f"{topic} latest official data"]
+def build_search_queries(
+    topic: str,
+    claims: list[ExtractedClaim],
+    max_queries: int = 2,
+) -> list[str]:
+    queries: list[str] = []
 
-    for claim in claims[:3]:
+    for claim in claims:
         snippet = claim.text.strip()[:160]
         if snippet:
             queries.append(f"{snippet} source")
+        if len(queries) >= max_queries:
+            return queries
 
-    return queries
+    topic = topic.strip()
+    if topic:
+        queries.append(f"{topic} latest official data")
+
+    return queries[:max_queries]
 
 
 def normalize_tavily_results(raw: dict, query: str) -> list[EvidenceSource]:
@@ -39,10 +49,11 @@ async def gather_evidence_for_group(
     topic: str,
     claims: list[ExtractedClaim],
     max_results_per_query: int = 3,
+    max_queries: int = 2,
 ) -> list[EvidenceSource]:
     evidence: list[EvidenceSource] = []
 
-    for query in build_search_queries(topic, claims):
+    for query in build_search_queries(topic, claims, max_queries=max_queries):
         raw = await tavily_client.search(query, max_results=max_results_per_query)
         evidence.extend(normalize_tavily_results(raw, query))
 

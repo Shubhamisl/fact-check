@@ -51,6 +51,11 @@ def health() -> dict[str, object]:
         "openrouter_model": settings.openrouter_model,
         "openrouter_vision_model": settings.openrouter_vision_model,
         "tavily_search_depth": settings.tavily_search_depth,
+        "max_claims_focused": settings.max_claims_focused,
+        "max_claims_deep": settings.max_claims_deep,
+        "max_search_queries_per_group": settings.max_search_queries_per_group,
+        "max_search_results_per_query": settings.max_search_results_per_query,
+        "enable_follow_up_search": settings.enable_follow_up_search,
         "debug_errors": settings.debug_errors,
     }
 
@@ -64,11 +69,22 @@ class LiveSearchService:
         topic: str,
         claims: list[ExtractedClaim],
     ) -> list[EvidenceSource]:
-        return await gather_evidence_for_group(self.tavily_client, topic, claims)
+        return await gather_evidence_for_group(
+            self.tavily_client,
+            topic,
+            claims,
+            max_results_per_query=settings.max_search_results_per_query,
+            max_queries=settings.max_search_queries_per_group,
+        )
 
     async def follow_up(self, claim: ExtractedClaim) -> list[EvidenceSource]:
+        if not settings.enable_follow_up_search:
+            return []
         query = f"{claim.text} latest official source correction"
-        raw = await self.tavily_client.search(query, max_results=5)
+        raw = await self.tavily_client.search(
+            query,
+            max_results=settings.max_search_results_per_query,
+        )
         return normalize_tavily_results(raw, query)
 
 

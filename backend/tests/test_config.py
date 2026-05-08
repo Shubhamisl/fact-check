@@ -21,6 +21,9 @@ def test_settings_defaults_are_assignment_safe():
     assert settings.max_claims_deep == 25
     assert settings.max_ocr_pages == 5
     assert settings.max_pdf_size_mb == 10
+    assert settings.max_search_queries_per_group == 2
+    assert settings.max_search_results_per_query == 2
+    assert settings.enable_follow_up_search is False
     assert settings.debug_errors is False
     assert settings.tavily_search_depth == "basic"
     assert settings.frontend_origin == "http://localhost:5173"
@@ -65,6 +68,10 @@ def test_settings_ignores_unrelated_extra_values():
         ("max_ocr_pages", -1),
         ("max_pdf_size_mb", 0),
         ("max_pdf_size_mb", -1),
+        ("max_search_queries_per_group", 0),
+        ("max_search_queries_per_group", -1),
+        ("max_search_results_per_query", 0),
+        ("max_search_results_per_query", -1),
     ],
 )
 def test_settings_rejects_non_positive_operational_limits(field_name, invalid_value):

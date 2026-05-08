@@ -16,10 +16,10 @@ from app.services.verifier import Verifier
 
 class DefaultSearchService:
     def __init__(self, tavily_client: TavilyClient | None = None) -> None:
-        settings = get_settings()
+        self.settings = get_settings()
         self.tavily_client = tavily_client or TavilyClient(
-            api_key=settings.tavily_api_key,
-            search_depth=settings.tavily_search_depth,
+            api_key=self.settings.tavily_api_key,
+            search_depth=self.settings.tavily_search_depth,
         )
 
     async def gather_evidence_for_group(
@@ -27,14 +27,23 @@ class DefaultSearchService:
         topic: str,
         claims: list[ExtractedClaim],
     ) -> list[EvidenceSource]:
-        return await gather_evidence_for_group(self.tavily_client, topic, claims)
+        return await gather_evidence_for_group(
+            self.tavily_client,
+            topic,
+            claims,
+            max_results_per_query=self.settings.max_search_results_per_query,
+            max_queries=self.settings.max_search_queries_per_group,
+        )
 
     async def follow_up(self, claim: ExtractedClaim) -> list[EvidenceSource]:
+        if not self.settings.enable_follow_up_search:
+            return []
         return await gather_evidence_for_group(
             self.tavily_client,
             claim.topic,
             [claim],
-            max_results_per_query=5,
+            max_results_per_query=self.settings.max_search_results_per_query,
+            max_queries=1,
         )
 
 
@@ -117,7 +126,11 @@ class FactCheckOrchestrator:
 
             for claim in topic_claims:
                 verdict = await self.verifier.verify(claim, evidence)
-                if verdict.confidence == "Low" and claim.importance == "high":
+                if (
+                    self.settings.enable_follow_up_search
+                    and verdict.confidence == "Low"
+                    and claim.importance == "high"
+                ):
                     try:
                         follow_up = await self.search_service.follow_up(claim)
                     except Exception:
