@@ -1,0 +1,25 @@
+services:
+  - type: web
+    name: fact-check-agent-api
+    env: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: OPENROUTER_API_KEY
+        sync: false
+      - key: OPENROUTER_MODEL
+        value: openai/gpt-4o-mini
+      - key: OPENROUTER_VISION_MODEL
+        value: openai/gpt-4o-mini
+      - key: TAVILY_API_KEY
+        sync: false
+      - key: MAX_CLAIMS_FOCUSED
+        value: 12
+      - key: MAX_CLAIMS_DEEP
+        value: 25
+      - key: MAX_OCR_PAGES
+        value: 5
+      - key: MAX_PDF_SIZE_MB
+        value: 10
+      - key: FRONTEND_ORIGIN
+        sync: false

@@ -1,0 +1,106 @@
+# Fact-Check Agent
+
+Live URL: _TBD_
+
+Fact-Check Agent is an MVP for reviewing claims in PDF documents. Upload a PDF, choose Focused Scan for a smaller set of high-signal claims or Deep Scan for broader coverage, and the app returns an evidence-backed fact-check report.
+
+## Features
+
+- PDF upload and asynchronous job polling.
+- Focused Scan and Deep Scan claim extraction modes.
+- PDF text extraction with OpenRouter vision OCR fallback for pages where embedded text is unavailable.
+- Tavily live web evidence gathering for current source material.
+- OpenRouter-powered claim extraction and verdict synthesis.
+- Verdict labels for Verified, Inaccurate, and False / Unsupported claims.
+- Interactive results table with expandable reasoning, corrected facts, confidence, and source URLs.
+- JSON report output from the backend job API.
+
+## Local Backend
+
+From Windows PowerShell:
+
+```powershell
+cd backend
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+pip install -r requirements.txt
+$env:OPENROUTER_API_KEY = "your-openrouter-api-key"
+$env:TAVILY_API_KEY = "your-tavily-api-key"
+$env:FRONTEND_ORIGIN = "http://localhost:5173"
+uvicorn app.main:app --host 0.0.0.0 --port 8000
+```
+
+The backend runs at `http://localhost:8000`.
+
+Optional local limits:
+
+```powershell
+$env:OPENROUTER_MODEL = "openai/gpt-4o-mini"
+$env:OPENROUTER_VISION_MODEL = "openai/gpt-4o-mini"
+$env:MAX_CLAIMS_FOCUSED = "12"
+$env:MAX_CLAIMS_DEEP = "25"
+$env:MAX_OCR_PAGES = "5"
+$env:MAX_PDF_SIZE_MB = "10"
+```
+
+## Local Frontend
+
+In a second Windows PowerShell window:
+
+```powershell
+cd frontend
+npm install
+$env:VITE_API_BASE_URL = "http://localhost:8000"
+npm run dev
+```
+
+The frontend runs at `http://localhost:5173`.
+
+## Render Deployment
+
+This repo includes Render blueprint files for separate backend and frontend services:
+
+- `backend/render.yaml` creates `fact-check-agent-api`.
+- `frontend/render.yaml` creates `fact-check-agent-web`.
+
+Deploy the backend first from the `backend` directory. Configure these Render environment variables:
+
+- `OPENROUTER_API_KEY`: your OpenRouter API key.
+- `TAVILY_API_KEY`: your Tavily API key.
+- `FRONTEND_ORIGIN`: the deployed frontend URL, for example `https://fact-check-agent-web.onrender.com`.
+- `OPENROUTER_MODEL`: `openai/gpt-4o-mini`.
+- `OPENROUTER_VISION_MODEL`: `openai/gpt-4o-mini`.
+- `MAX_CLAIMS_FOCUSED`: `12`.
+- `MAX_CLAIMS_DEEP`: `25`.
+- `MAX_OCR_PAGES`: `5`.
+- `MAX_PDF_SIZE_MB`: `10`.
+
+The backend build command is:
+
+```bash
+pip install -r requirements.txt
+```
+
+The backend start command is:
+
+```bash
+uvicorn app.main:app --host 0.0.0.0 --port $PORT
+```
+
+Deploy the frontend from the `frontend` directory. Set `VITE_API_BASE_URL` to the deployed backend URL, for example `https://fact-check-agent-api.onrender.com`.
+
+The frontend build command is:
+
+```bash
+npm install && npm run build
+```
+
+The frontend static publish path is:
+
+```text
+dist
+```
+
+## MVP Runtime Note
+
+Job polling currently uses an in-memory job store in the backend process. On Render, run the backend as a single process with one Uvicorn worker unless shared storage such as Redis, a database, or another durable queue is added. Multiple workers or instances would not share job state, so polling could miss jobs created by another process.
