@@ -50,6 +50,7 @@ def health() -> dict[str, object]:
         "openrouter_model": settings.openrouter_model,
         "openrouter_vision_model": settings.openrouter_vision_model,
         "tavily_search_depth": settings.tavily_search_depth,
+        "debug_errors": settings.debug_errors,
     }
 
 
