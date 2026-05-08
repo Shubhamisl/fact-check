@@ -1,0 +1,176 @@
+:root {
+  font-family:
+    "Aptos",
+    "Segoe UI",
+    system-ui,
+    sans-serif;
+  color: #1f2d33;
+  background: #eef2f4;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-width: 320px;
+  min-height: 100vh;
+}
+
+button,
+input,
+textarea,
+select {
+  font: inherit;
+}
+
+.appShell {
+  min-height: 100vh;
+  display: grid;
+  grid-template-rows: 64px 1fr;
+}
+
+.topBar {
+  height: 64px;
+  background: #ffffff;
+  border-bottom: 1px solid #dbe3e7;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 0 28px;
+}
+
+.brandMark {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  color: #123d4a;
+  font-size: 15px;
+  font-weight: 800;
+}
+
+.statusPill {
+  min-width: 72px;
+  min-height: 32px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid #cbd7dc;
+  border-radius: 999px;
+  color: #28444f;
+  background: #f7fafb;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.workspace {
+  display: grid;
+  grid-template-columns: 340px minmax(0, 1fr);
+  min-height: calc(100vh - 64px);
+}
+
+.controlPanel {
+  background: #f8fafb;
+  border-right: 1px solid #dbe3e7;
+  padding: 32px 28px;
+}
+
+.panelIcon {
+  width: 48px;
+  height: 48px;
+  display: grid;
+  place-items: center;
+  border: 1px solid #c9d6db;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #123d4a;
+  margin-bottom: 26px;
+}
+
+.controlPanel h1 {
+  margin: 0;
+  color: #17272e;
+  font-size: 30px;
+  line-height: 1.08;
+  letter-spacing: 0;
+}
+
+.controlPanel p {
+  margin: 14px 0 0;
+  color: #53666f;
+  font-size: 15px;
+  line-height: 1.6;
+}
+
+.resultsPane {
+  min-width: 0;
+  padding: 32px;
+  background:
+    linear-gradient(#eef2f4 0 0) padding-box,
+    repeating-linear-gradient(
+      90deg,
+      rgba(18, 61, 74, 0.05) 0,
+      rgba(18, 61, 74, 0.05) 1px,
+      transparent 1px,
+      transparent 32px
+    );
+}
+
+.emptyState {
+  min-height: calc(100vh - 128px);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  color: #52666f;
+  padding: 24px;
+}
+
+.emptyState svg {
+  color: #123d4a;
+  margin-bottom: 18px;
+}
+
+.emptyState h2 {
+  margin: 0;
+  color: #1d3038;
+  font-size: 22px;
+  letter-spacing: 0;
+}
+
+.emptyState p {
+  max-width: 440px;
+  margin: 10px 0 0;
+  font-size: 15px;
+  line-height: 1.6;
+}
+
+@media (max-width: 760px) {
+  .topBar {
+    padding: 0 18px;
+  }
+
+  .workspace {
+    grid-template-columns: 1fr;
+  }
+
+  .controlPanel {
+    border-right: 0;
+    border-bottom: 1px solid #dbe3e7;
+  }
+
+  .resultsPane {
+    padding: 20px;
+  }
+
+  .emptyState {
+    min-height: 360px;
+  }
+}
