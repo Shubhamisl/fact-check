@@ -45,6 +45,7 @@ export function UploadPanel({
         <button
           type="button"
           className={scanMode === "focused" ? "active" : ""}
+          aria-pressed={scanMode === "focused"}
           onClick={() => onScanModeChange("focused")}
           disabled={isRunning}
         >
@@ -53,6 +54,7 @@ export function UploadPanel({
         <button
           type="button"
           className={scanMode === "deep" ? "active" : ""}
+          aria-pressed={scanMode === "deep"}
           onClick={() => onScanModeChange("deep")}
           disabled={isRunning}
         >

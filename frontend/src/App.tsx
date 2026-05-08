@@ -89,7 +89,11 @@ export default function App() {
         </aside>
 
         <section className="resultsPane" aria-label="Fact-check results">
-          {error ? <div className="errorBox">{error}</div> : null}
+          {error ? (
+            <div className="errorBox" role="alert">
+              {error}
+            </div>
+          ) : null}
 
           {!report && !error ? (
             <div className="emptyState">

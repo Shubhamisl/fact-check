@@ -477,10 +477,6 @@ input:disabled {
   background: #f6f9fa;
 }
 
-.resultsTable tbody tr:not(.detailsRow):focus-visible {
-  box-shadow: inset 0 0 0 3px rgba(35, 99, 116, 0.2);
-}
-
 .resultsTable td {
   color: #2f424a;
   font-size: 14px;
@@ -489,20 +485,56 @@ input:disabled {
 
 .claimCell {
   display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
   gap: 6px;
+  align-items: start;
   min-width: 260px;
 }
 
-.claimCell strong {
+.claimText {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+
+.claimText strong {
   color: #17272e;
   font-weight: 800;
 }
 
-.claimCell span {
+.claimMeta {
   color: #6a7b83;
   font-size: 12px;
   font-weight: 750;
   text-transform: uppercase;
+}
+
+.expandClaimButton {
+  width: 78px;
+  min-height: 30px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  border: 1px solid #c7d3d8;
+  border-radius: 999px;
+  color: #28444f;
+  background: #ffffff;
+  font-size: 12px;
+  font-weight: 850;
+}
+
+.expandClaimButton svg {
+  transition: transform 160ms ease;
+}
+
+.expandClaimButton[aria-expanded="true"] svg {
+  transform: rotate(180deg);
+}
+
+.expandClaimButton:focus-visible {
+  outline: 3px solid rgba(35, 99, 116, 0.2);
+  outline-offset: 2px;
 }
 
 .verdictBadge {
@@ -594,6 +626,20 @@ input:disabled {
 
   50% {
     transform: scale(1.22);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+  }
+
+  .progressRail.isRunning .stageDot,
+  .expandClaimButton svg {
+    animation: none;
+    transition: none;
   }
 }
 
@@ -738,6 +784,14 @@ input:disabled {
   .fileDrop,
   .resultsTable td {
     grid-template-columns: 1fr;
+  }
+
+  .claimCell {
+    grid-template-columns: 1fr;
+  }
+
+  .expandClaimButton {
+    width: 100%;
   }
 
   .fileDropIcon {

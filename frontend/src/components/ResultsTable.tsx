@@ -1,4 +1,5 @@
 import { Fragment, useState } from "react";
+import { ChevronDown } from "lucide-react";
 import type { ClaimVerdict, VerdictLabel } from "../types";
 import { ClaimDetails } from "./ClaimDetails";
 
@@ -41,20 +42,11 @@ export function ResultsTable({ claims }: ResultsTableProps) {
           {claims.map((claimVerdict) => {
             const claimId = claimVerdict.claim.id;
             const isExpanded = expandedClaimId === claimId;
+            const detailsId = `claim-details-${claimId}`;
 
             return (
               <Fragment key={claimId}>
-                <tr
-                  className={isExpanded ? "expanded" : ""}
-                  onClick={() => toggleClaim(claimId)}
-                  tabIndex={0}
-                  onKeyDown={(event) => {
-                    if (event.key === "Enter" || event.key === " ") {
-                      event.preventDefault();
-                      toggleClaim(claimId);
-                    }
-                  }}
-                >
+                <tr className={isExpanded ? "expanded" : ""}>
                   <td data-label="Verdict">
                     <span
                       className={`verdictBadge ${verdictTone(
@@ -66,11 +58,23 @@ export function ResultsTable({ claims }: ResultsTableProps) {
                   </td>
                   <td data-label="Claim">
                     <div className="claimCell">
-                      <strong>{claimVerdict.claim.text}</strong>
-                      <span>
-                        {claimVerdict.claim.topic} - Page{" "}
-                        {claimVerdict.claim.page_number ?? "n/a"}
-                      </span>
+                      <button
+                        type="button"
+                        className="expandClaimButton"
+                        aria-expanded={isExpanded}
+                        aria-controls={detailsId}
+                        onClick={() => toggleClaim(claimId)}
+                      >
+                        <ChevronDown size={16} strokeWidth={2.2} />
+                        <span>{isExpanded ? "Collapse" : "Expand"}</span>
+                      </button>
+                      <div className="claimText">
+                        <strong>{claimVerdict.claim.text}</strong>
+                        <span className="claimMeta">
+                          {claimVerdict.claim.topic} - Page{" "}
+                          {claimVerdict.claim.page_number ?? "n/a"}
+                        </span>
+                      </div>
                     </div>
                   </td>
                   <td data-label="Correction">
@@ -80,9 +84,11 @@ export function ResultsTable({ claims }: ResultsTableProps) {
                   <td data-label="Sources">{claimVerdict.sources.length}</td>
                 </tr>
                 {isExpanded ? (
-                  <tr className="detailsRow">
+                  <tr className="detailsRow" id={detailsId}>
                     <td colSpan={5}>
-                      <ClaimDetails verdict={claimVerdict} />
+                      <div role="region" aria-label="Claim details">
+                        <ClaimDetails verdict={claimVerdict} />
+                      </div>
                     </td>
                   </tr>
                 ) : null}
