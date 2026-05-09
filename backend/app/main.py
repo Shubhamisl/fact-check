@@ -31,6 +31,7 @@ JOB_TTL_SECONDS = 30 * 60
 MAX_JOBS = 100
 jobs: dict[str, dict[str, object]] = {}
 job_tasks: dict[str, asyncio.Task[None]] = {}
+ACTIVE_JOB_STATUSES = {"queued", "running"}
 
 app = FastAPI(title="Fact-Check Agent", version="0.1.0")
 
@@ -134,8 +135,13 @@ def cleanup_jobs() -> None:
     if excess_count <= 0:
         return
 
+    removable_job_ids = [
+        job_id
+        for job_id, job in jobs.items()
+        if job.get("status") not in ACTIVE_JOB_STATUSES
+    ]
     oldest_job_ids = sorted(
-        jobs,
+        removable_job_ids,
         key=lambda current_job_id: float(jobs[current_job_id].get("updated_at", 0)),
     )
     for job_id in oldest_job_ids[:excess_count]:

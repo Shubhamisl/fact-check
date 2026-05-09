@@ -45,6 +45,11 @@ class MalformedOnlyOpenRouterClient:
         return {"claims": [{"": None}]}
 
 
+class ScalarOpenRouterClient:
+    async def chat_json(self, system: str, user: str, model: str | None = None):
+        return "not an object"
+
+
 @pytest.mark.asyncio
 async def test_claim_extractor_falls_back_to_regex_claims_when_model_schema_fails():
     extractor = ClaimExtractor(MalformedOnlyOpenRouterClient())
@@ -70,6 +75,27 @@ async def test_claim_extractor_falls_back_to_regex_claims_when_model_schema_fail
     ]
     assert claims[0].claim_type == "date"
     assert claims[0].page_number == 1
+
+
+@pytest.mark.asyncio
+async def test_claim_extractor_falls_back_when_model_returns_scalar_json():
+    extractor = ClaimExtractor(ScalarOpenRouterClient())
+
+    claims = await extractor.extract_claims(
+        [
+            PageText(
+                page_number=1,
+                text="The Eiffel Tower is 10,000 meters tall.",
+                source="pdf",
+            )
+        ],
+        ScanMode.focused,
+        limit=5,
+    )
+
+    assert [claim.text for claim in claims] == [
+        "The Eiffel Tower is 10,000 meters tall."
+    ]
 
 
 @pytest.mark.asyncio

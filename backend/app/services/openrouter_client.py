@@ -7,6 +7,31 @@ import httpx
 from app.config import get_settings
 
 
+def parse_json_content(content: str) -> Any:
+    stripped = content.strip()
+    if stripped.startswith("```"):
+        lines = stripped.splitlines()
+        if lines and lines[0].startswith("```"):
+            lines = lines[1:]
+        if lines and lines[-1].strip() == "```":
+            lines = lines[:-1]
+        stripped = "\n".join(lines).strip()
+
+    try:
+        return json.loads(stripped)
+    except json.JSONDecodeError:
+        decoder = json.JSONDecoder()
+        for index, character in enumerate(stripped):
+            if character not in "{[":
+                continue
+            try:
+                value, _ = decoder.raw_decode(stripped[index:])
+            except json.JSONDecodeError:
+                continue
+            return value
+        raise
+
+
 class OpenRouterClient:
     def __init__(
         self,
@@ -38,7 +63,7 @@ class OpenRouterClient:
         model: str | None = None,
     ) -> dict[str, Any]:
         content = await self.chat_text(system=system, user=user, model=model)
-        return json.loads(content)
+        return parse_json_content(content)
 
     async def chat_text(
         self,

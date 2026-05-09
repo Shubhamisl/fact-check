@@ -127,6 +127,16 @@ class LowConfidenceVerifier(FakeVerifier):
         )
 
 
+class FailingVerifier(FakeVerifier):
+    async def verify(
+        self,
+        claim: ExtractedClaim,
+        evidence: list[EvidenceSource],
+    ) -> ClaimVerdict:
+        self.calls.append((claim, evidence))
+        raise RuntimeError("model returned invalid JSON")
+
+
 class FakeSettings:
     enable_follow_up_search = True
 
@@ -269,3 +279,36 @@ async def test_follow_up_failure_preserves_original_low_confidence_verdict():
     assert verdict.reasoning == "The evidence is insufficient to verify the claim."
     assert len(verifier.calls) == 1
     assert len(search_service.follow_up_calls) == 1
+
+
+@pytest.mark.asyncio
+async def test_verifier_failure_marks_claim_verification_unavailable_without_run_failure():
+    pages = [
+        PageText(
+            page_number=1,
+            text="The platform has 10 million users.",
+            source="pdf",
+        )
+    ]
+    search_service = FakeSearchService()
+    verifier = FailingVerifier()
+    orchestrator = FactCheckOrchestrator(
+        claim_extractor=FakeClaimExtractor(),
+        search_service=search_service,
+        verifier=verifier,
+        settings=FakeSettings(),
+    )
+
+    report = await orchestrator.run("deck.pdf", pages, ScanMode.focused)
+
+    assert report.summary == {
+        "total": 1,
+        "verified": 0,
+        "inaccurate": 0,
+        "false_or_unsupported": 1,
+    }
+    verdict = report.claims[0]
+    assert verdict.verdict == "False / Unsupported"
+    assert verdict.confidence == "Low"
+    assert "verification model failed" in verdict.reasoning
+    assert verifier.calls[0][0].id == "claim-1"

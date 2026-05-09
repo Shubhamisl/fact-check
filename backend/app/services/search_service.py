@@ -1,3 +1,5 @@
+from pydantic import ValidationError
+
 from app.models import EvidenceSource, ExtractedClaim
 from app.services.tavily_client import TavilyClient
 
@@ -31,15 +33,18 @@ def normalize_tavily_results(raw: dict, query: str) -> list[EvidenceSource]:
         if not url:
             continue
 
-        evidence.append(
-            EvidenceSource(
-                title=item.get("title") or "Untitled source",
-                url=url,
-                snippet=item.get("content") or item.get("snippet") or "",
-                published_date=item.get("published_date"),
-                query=query,
+        try:
+            evidence.append(
+                EvidenceSource(
+                    title=item.get("title") or "Untitled source",
+                    url=url,
+                    snippet=item.get("content") or item.get("snippet") or "",
+                    published_date=item.get("published_date"),
+                    query=query,
+                )
             )
-        )
+        except ValidationError:
+            continue
 
     return evidence
 

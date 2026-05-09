@@ -125,7 +125,26 @@ class FactCheckOrchestrator:
                 continue
 
             for claim in topic_claims:
-                verdict = await self.verifier.verify(claim, evidence)
+                try:
+                    verdict = await self.verifier.verify(claim, evidence)
+                except Exception:
+                    verdicts.append(
+                        ClaimVerdict(
+                            claim=claim,
+                            verdict="False / Unsupported",
+                            corrected_fact=None,
+                            confidence="Low",
+                            reasoning=(
+                                "verification model failed, so verification is "
+                                "unavailable for this claim."
+                            ),
+                            sources=evidence,
+                            search_queries=sorted(
+                                {source.query for source in evidence if source.query}
+                            ),
+                        )
+                    )
+                    continue
                 if (
                     self.settings.enable_follow_up_search
                     and verdict.confidence == "Low"

@@ -52,6 +52,10 @@ function pdfFile() {
   return new File(["%PDF-1.4"], "trap.pdf", { type: "application/pdf" });
 }
 
+function namedPdfFile(name: string) {
+  return new File(["%PDF-1.4"], name, { type: "application/pdf" });
+}
+
 function jsonResponse(payload: unknown) {
   return Promise.resolve(
     new Response(JSON.stringify(payload), {
@@ -226,5 +230,42 @@ describe("App workbench", () => {
     await user.click(screen.getByRole("button", { name: "Run" }));
 
     expect(await screen.findByRole("button", { name: "JSON" })).toBeInTheDocument();
+  });
+
+  test("clears the old report while a new PDF is running", async () => {
+    const user = userEvent.setup();
+    const secondCreateJob = deferred<Response>();
+    let createJobCalls = 0;
+
+    vi.spyOn(globalThis, "fetch").mockImplementation((input) => {
+      const url = input.toString();
+
+      if (url.endsWith("/api/jobs")) {
+        createJobCalls += 1;
+        if (createJobCalls === 1) {
+          return jsonResponse({ job_id: "job_123" });
+        }
+        return secondCreateJob.promise;
+      }
+
+      if (url.endsWith("/api/jobs/job_123")) {
+        return jsonResponse({ status: "complete", progress: 100, report: completeReport });
+      }
+
+      throw new Error(`Unexpected fetch: ${url}`);
+    });
+
+    const { container } = render(<App />);
+    const input = container.querySelector('input[type="file"]') as HTMLInputElement;
+
+    await user.upload(input, namedPdfFile("first.pdf"));
+    await user.click(screen.getByRole("button", { name: "Run" }));
+    expect(await screen.findByRole("heading", { name: "trap.pdf" })).toBeInTheDocument();
+
+    await user.upload(input, namedPdfFile("second.pdf"));
+    await user.click(screen.getByRole("button", { name: "Run" }));
+
+    expect(screen.getAllByText("Running")).toHaveLength(2);
+    expect(screen.queryByRole("heading", { name: "trap.pdf" })).not.toBeInTheDocument();
   });
 });

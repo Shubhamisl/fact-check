@@ -62,6 +62,7 @@ export default function App() {
     runIdRef.current = runId;
     activeControllerRef.current = controller;
     setError(null);
+    setReport(null);
     setIsRunning(true);
 
     try {

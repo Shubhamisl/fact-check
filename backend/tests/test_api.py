@@ -1,4 +1,5 @@
 import sys
+from time import time
 from pathlib import Path
 
 import pytest
@@ -8,6 +9,17 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from app import main
 from app.models import PageText
+
+
+class FakeRunningTask:
+    def __init__(self) -> None:
+        self.cancelled = False
+
+    def done(self) -> bool:
+        return False
+
+    def cancel(self) -> None:
+        self.cancelled = True
 
 
 @pytest.fixture
@@ -148,3 +160,36 @@ def test_fact_check_debug_errors_include_provider_detail(
     assert detail["debug"]["type"] == "RuntimeError"
     assert detail["debug"]["message"] == "model does not support response_format"
     monkeypatch.setattr(main.settings, "debug_errors", False)
+
+
+def test_cleanup_jobs_does_not_evict_running_jobs_when_store_is_full() -> None:
+    main.jobs.clear()
+    main.job_tasks.clear()
+    running_task = FakeRunningTask()
+    now = time()
+
+    try:
+        main.jobs["running-job"] = {
+            "job_id": "running-job",
+            "status": "running",
+            "progress": 20,
+            "updated_at": now - 10,
+        }
+        main.job_tasks["running-job"] = running_task
+        for index in range(main.MAX_JOBS):
+            job_id = f"complete-job-{index}"
+            main.jobs[job_id] = {
+                "job_id": job_id,
+                "status": "complete",
+                "progress": 100,
+                "updated_at": now + index,
+            }
+
+        main.cleanup_jobs()
+
+        assert "running-job" in main.jobs
+        assert running_task.cancelled is False
+        assert len(main.jobs) == main.MAX_JOBS
+    finally:
+        main.jobs.clear()
+        main.job_tasks.clear()

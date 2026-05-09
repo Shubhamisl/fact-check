@@ -94,6 +94,29 @@ def test_normalize_tavily_results_uses_snippet_fallback_and_skips_items_without_
     assert str(evidence[0].url) == "https://example.com/snippet"
 
 
+def test_normalize_tavily_results_skips_invalid_urls_without_dropping_valid_results():
+    raw = {
+        "results": [
+            {
+                "title": "Bad URL",
+                "url": "not a url",
+                "content": "This malformed result should be ignored.",
+            },
+            {
+                "title": "Valid result",
+                "url": "https://example.com/valid",
+                "content": "This valid evidence should be preserved.",
+            },
+        ]
+    }
+
+    evidence = normalize_tavily_results(raw, query="query")
+
+    assert len(evidence) == 1
+    assert evidence[0].title == "Valid result"
+    assert str(evidence[0].url) == "https://example.com/valid"
+
+
 @pytest.mark.asyncio
 async def test_gather_evidence_for_group_searches_each_query_and_normalizes_results():
     class FakeTavilyClient:

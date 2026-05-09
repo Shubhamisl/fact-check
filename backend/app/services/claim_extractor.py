@@ -130,8 +130,17 @@ class ClaimExtractor:
             f"Document text:\n{page_text}"
         )
 
-        data = await self.client.chat_json(system=system, user=user)
-        raw_claims = data if isinstance(data, list) else data.get("claims", [])
+        try:
+            data = await self.client.chat_json(system=system, user=user)
+        except Exception:
+            return fallback_extract_claims(pages, limit)
+
+        if isinstance(data, list):
+            raw_claims = data
+        elif isinstance(data, dict):
+            raw_claims = data.get("claims", [])
+        else:
+            raw_claims = []
         claims: list[ExtractedClaim] = []
         for item in raw_claims:
             try:
