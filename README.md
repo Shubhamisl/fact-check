@@ -163,3 +163,8 @@ If `configured` is `true`, enable temporary detailed errors:
 5. Set `DEBUG_ERRORS=false` again after debugging and redeploy.
 
 Do not leave `DEBUG_ERRORS=true` for a public submission unless you are comfortable exposing short provider error messages to testers.
+
+
+
+## NOTE
+requirements.txt is in backend folder, this is to match the separated backend and frontend structure of Render.
